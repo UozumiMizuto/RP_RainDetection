@@ -1,0 +1,2 @@
+# RP_RainDetection
+ラズパイPicoWで雨を検知して通知する省エネスクリプト

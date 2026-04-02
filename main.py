@@ -5,23 +5,16 @@ import utime
 import network
 import slack
 
-# require "Pico W"
-SSID = 'SSID'
-PW = 'Password'
-
-# Require SlackAPI https://qiita.com/odm_knpr0122/items/04c342ec8d9fe85e0fe9
-# xoxb-xxxxxxxxxxxxx-xxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxx
-Token = 'Token'
-Channel = '#general'
+import secrets
 
 # wifi接続確認＆起動通知
 wlan = network.WLAN(network.STA_IF)
 wlan.active(True)
-wlan.connect(SSID, PW)
+wlan.connect(secrets.SSID, secrets.PW)
 
 while wlan.isconnected() == False:
-    client = slack_sdk.WebClient(Token)
-    client.chat_postMessage(Channel, text="RainDetectionが起動しました")
+    client = slack_sdk.WebClient(secrets.Token)
+    client.chat_postMessage(secrets.Channel, text="RainDetectionが起動しました")
 
 # 起動LED
 led = machine.Pin(25, machine.Pin.OUT)

@@ -1,76 +1,89 @@
 from machine import Pin
 import machine
 import time
-import utime
 import network
 import urequests
 import json
-
 import secrets
+
+wake_up_pin = machine.Pin(15, machine.Pin.IN, machine.Pin.PULL_UP)
+wake_up_pin.irq(trigger=machine.Pin.IRQ_FALLING, handler=None)
+sensor_power = machine.Pin(16, machine.Pin.OUT)
 
 #####################################
 # wifi
 wlan = network.WLAN(network.STA_IF)
 
-# slack
-def send_slack(text):
-    connect_wifi()
+def connect_wifi():
+    for attempt in range(5):
+        print(f"WiFi接続試行 {attempt + 1}/5")
+        wlan.active(False)
+        time.sleep_ms(500)  # チップのリセット待ち
+        wlan.active(True)
+        time.sleep_ms(500)  # スキャン開始を待つ
+        wlan.connect(secrets.SSID, secrets.PW)
+        
+        for i in range(30):
+            if wlan.isconnected():
+                print(wlan.ifconfig()[0])
+                return True
+            time.sleep(1)
+        
+        print(f"タイムアウト (status: {wlan.status()})")
     
+    print("WiFi接続失敗")
+    return False
+
+def send_slack(text):
+    print("slack送信開始:" + text)
+    if not connect_wifi():
+        return
     data = {"text": text}
     payload = json.dumps(data).encode('utf-8')
     headers = {"Content-Type": "application/json"}
-    print (secrets.WEBHOOK_URL)
     try:
         response = urequests.post(secrets.WEBHOOK_URL, data=payload, headers=headers)
         print("Response:", response.status_code)
-        print("Response Body:",response.text)
+        print("Response Body:", response.text)
         response.close()
     except Exception as e:
         print("Error:", e)
-    
-    wlan.active(False)
-    wlan.deinit()
-        
-# wifi接続処理　直接呼び出したりしない。
-def connect_wifi():
-    # wifi接続確認＆起動通知
-    wlan.active(True)
-    wlan.connect(secrets.SSID, secrets.PW)
+    finally:
+        wlan.active(False)
+        wlan.deinit()
+        print("送信完了")
 
-    while not wlan.isconnected():
+def detectrain():
+    while True:
+        sensor_power.value(1)
+        time.sleep_ms(100)
+        
+        value1 = wake_up_pin.value()
         time.sleep(1)
+        value2 = wake_up_pin.value()
+        time.sleep(1)
+        value3 = wake_up_pin.value()
         
-    status = wlan.ifconfig()
-    print(status[0])
-    
+        sensor_power.value(0)
+        
+        if value1 == value2 == value3:
+            return value1
+        time.sleep(10)
+        # 1=雨なし、0=雨あり（センサー出力は逆）
+
 #####################################
-
-# 起動時ここから開始
+#起動時はここから実行
 send_slack("RainDetectionが起動しました")
-        
-
-# 起動LED
-led = machine.Pin("LED", machine.Pin.OUT)
-led.value(1)
-time.sleep(5)
-led.value(0)
-
 
 while True:
-    print("aaaa")
-# 1. 起こしてくれるピンを指定（例：GP15）
-    wake_up_pin = machine.Pin(15, machine.Pin.IN, machine.Pin.PULL_DOWN)
-    wake_up_pin.irq(trigger=machine.Pin.IRQ_RISING, handler=None)
+    print("*待機中* 雨が降るのを待っています")
+    while detectrain() == 1:
+        time.sleep(30)
 
-    print("おやすみなさい...")
-# 3. 休止！
-    machine.lightsleep()
+    send_slack("☔☔☔雨が降ってきました！☔☔☔")
+    print("*待機中* 雨が止むのを待っています")
 
-# --- 15番ピンに電気が流れると、ここから再開 ---
-    print("おはよう！")
-    send_slack("雨が降ってきました")
-# lightsleepに入り、10分おきに疎通確認。
-    
-# 疎通が解除されたら
+    while detectrain() == 0:
+        time.sleep(30)
 
-end
+    send_slack("⛅️雨がやみました……")

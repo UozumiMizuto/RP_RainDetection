@@ -3,7 +3,7 @@ import machine
 import time
 import utime
 import network
-import slack_sdk
+import slack
 
 # require "Pico W"
 SSID = 'SSID'
@@ -32,7 +32,9 @@ led.value(0)
 
 while True:
 # Dormant Modeでスリープする。雨に反応して起動する。
-    
+    led.value(1)
+    time.sleep(5)
+    led.value(0)
 # Wifi起動して通知
     
 # wifi解除

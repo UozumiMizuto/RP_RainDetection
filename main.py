@@ -1,4 +1,4 @@
-from machine import Pin
+from machine import Pin, lightsleep
 import machine
 import time
 import network
@@ -18,9 +18,9 @@ def connect_wifi():
     for attempt in range(5):
         print(f"WiFi接続試行 {attempt + 1}/5")
         wlan.active(False)
-        time.sleep_ms(500)  # チップのリセット待ち
+        time.sleep_ms(300)  # チップのリセット待ち
         wlan.active(True)
-        time.sleep_ms(500)  # スキャン開始を待つ
+        time.sleep_ms(300)  # スキャン開始を待つ
         wlan.connect(secrets.SSID, secrets.PW)
         
         for i in range(30):
@@ -53,37 +53,40 @@ def send_slack(text):
         wlan.deinit()
         print("送信完了")
 
-def detectrain():
+def detectrain(want):
     while True:
         sensor_power.value(1)
         time.sleep_ms(100)
         
         value1 = wake_up_pin.value()
-        time.sleep(1)
+        if value1 != want:
+            sensor_power.value(0)
+            return value1
+            
+        machine.lightsleep(500)
         value2 = wake_up_pin.value()
-        time.sleep(1)
+        machine.lightsleep(500)
         value3 = wake_up_pin.value()
         
         sensor_power.value(0)
-        
         if value1 == value2 == value3:
             return value1
-        time.sleep(10)
+        time.sleep(60)
         # 1=雨なし、0=雨あり（センサー出力は逆）
 
 #####################################
 #起動時はここから実行
-send_slack("RainDetectionが起動しました")
+send_slack("RainDetectionが起動しました！")
 
 while True:
     print("*待機中* 雨が降るのを待っています")
-    while detectrain() == 1:
-        time.sleep(30)
+    while detectrain(0) == 1:
+        machine.lightsleep(60000)
 
     send_slack("☔☔☔雨が降ってきました！☔☔☔")
     print("*待機中* 雨が止むのを待っています")
 
-    while detectrain() == 0:
-        time.sleep(30)
+    while detectrain(1) == 0:
+        machine.lightsleep(60000)
 
     send_slack("⛅️雨がやみました……")
